@@ -96,6 +96,62 @@ function Catalog() {
     fetchProducts()
   }, [])
 
+  // Filter products based on selected filters and search query
+  const filteredProducts = products.filter((product) => {
+    // Search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase()
+      const searchableText = [
+        product.name,
+        product.brand,
+        product.model,
+        product.description
+      ].filter(Boolean).join(' ').toLowerCase()
+      
+      if (!searchableText.includes(query)) {
+        return false
+      }
+    }
+
+    // Brand filter
+    if (selectedBrand !== 'Todos' && product.brand !== selectedBrand) {
+      return false
+    }
+
+    // Material filter (case_material)
+    if (selectedMaterial !== 'Todos' && product.case_material !== selectedMaterial) {
+      return false
+    }
+
+    // Movement type filter
+    if (selectedMovement !== 'Todos' && product.movement_type !== selectedMovement) {
+      return false
+    }
+
+    // Price filter
+    if (selectedPrice !== 'Todos os preços') {
+      const price = parseFloat(product.price)
+      switch (selectedPrice) {
+        case 'Até €3.000':
+          if (price > 3000) return false
+          break
+        case '€3.000 - €4.000':
+          if (price < 3000 || price > 4000) return false
+          break
+        case '€4.000 - €5.000':
+          if (price < 4000 || price > 5000) return false
+          break
+        case 'Acima de €5.000':
+          if (price <= 5000) return false
+          break
+        default:
+          break
+      }
+    }
+
+    return true
+  })
+
   // Handle product submission
   const handleSubmitProduct = async (e) => {
     e.preventDefault()
@@ -507,7 +563,7 @@ function Catalog() {
               color: '#d4af37',
               marginBottom: '20px'
             }}>
-              Material
+              Material da Caixa
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {['Todos', 'Aço Inoxidável', 'Ouro', 'Titânio', 'Cerâmica', 'Platina'].map((material) => (
@@ -629,7 +685,7 @@ function Catalog() {
               color: '#ffffff',
               fontSize: '16px'
             }}>
-              {productsLoading ? 'Carregando...' : `${products.length} produto${products.length !== 1 ? 's' : ''} encontrado${products.length !== 1 ? 's' : ''}`}
+              {productsLoading ? 'Carregando...' : `${filteredProducts.length} produto${filteredProducts.length !== 1 ? 's' : ''} encontrado${filteredProducts.length !== 1 ? 's' : ''}`}
             </div>
             {isAdmin && (
               <button
@@ -670,7 +726,7 @@ function Catalog() {
                 Carregando produtos...
               </p>
             </div>
-          ) : products.length === 0 ? (
+          ) : filteredProducts.length === 0 ? (
             <div style={{
               textAlign: 'center',
               padding: '120px 40px',
@@ -689,7 +745,9 @@ function Catalog() {
                 fontSize: '14px',
                 color: '#666'
               }}>
-                Os produtos aparecerão aqui quando estiverem disponíveis
+                {products.length === 0 
+                  ? 'Os produtos aparecerão aqui quando estiverem disponíveis'
+                  : 'Tente ajustar os filtros ou a pesquisa'}
               </p>
             </div>
           ) : (
@@ -698,7 +756,7 @@ function Catalog() {
               gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
               gap: '32px'
             }}>
-              {products.map((product) => (
+              {filteredProducts.map((product) => (
                 <div
                   key={product.id}
                   style={{
@@ -901,8 +959,7 @@ function Catalog() {
                     }}>
                       Brand *
                     </label>
-                    <input
-                      type="text"
+                    <select
                       value={productForm.brand}
                       onChange={(e) => setProductForm({ ...productForm, brand: e.target.value })}
                       required
@@ -915,11 +972,19 @@ function Catalog() {
                         fontSize: '16px',
                         color: '#ffffff',
                         outline: 'none',
-                        boxSizing: 'border-box'
+                        boxSizing: 'border-box',
+                        cursor: 'pointer'
                       }}
                       onFocus={(e) => e.target.style.borderColor = '#d4af37'}
                       onBlur={(e) => e.target.style.borderColor = '#3a3a3a'}
-                    />
+                    >
+                      <option value="">Selecione uma marca...</option>
+                      {['Rolex', 'Omega', 'Tag Heuer', 'Breitling', 'Patek Philippe', 'Audemars Piguet'].map((brand) => (
+                        <option key={brand} value={brand} style={{ backgroundColor: '#1a1a1a', color: '#ffffff' }}>
+                          {brand}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   {/* Model */}
@@ -1064,8 +1129,7 @@ function Catalog() {
                     }}>
                       Material da Caixa
                     </label>
-                    <input
-                      type="text"
+                    <select
                       value={productForm.case_material}
                       onChange={(e) => setProductForm({ ...productForm, case_material: e.target.value })}
                       style={{
@@ -1077,11 +1141,19 @@ function Catalog() {
                         fontSize: '16px',
                         color: '#ffffff',
                         outline: 'none',
-                        boxSizing: 'border-box'
+                        boxSizing: 'border-box',
+                        cursor: 'pointer'
                       }}
                       onFocus={(e) => e.target.style.borderColor = '#d4af37'}
                       onBlur={(e) => e.target.style.borderColor = '#3a3a3a'}
-                    />
+                    >
+                      <option value="">Selecione...</option>
+                      {['Aço Inoxidável', 'Ouro', 'Titânio', 'Cerâmica', 'Platina'].map((material) => (
+                        <option key={material} value={material} style={{ backgroundColor: '#1a1a1a', color: '#ffffff' }}>
+                          {material}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   {/* Strap Material */}
@@ -1095,8 +1167,7 @@ function Catalog() {
                     }}>
                       Material da Pulseira
                     </label>
-                    <input
-                      type="text"
+                    <select
                       value={productForm.strap_material}
                       onChange={(e) => setProductForm({ ...productForm, strap_material: e.target.value })}
                       style={{
@@ -1108,11 +1179,19 @@ function Catalog() {
                         fontSize: '16px',
                         color: '#ffffff',
                         outline: 'none',
-                        boxSizing: 'border-box'
+                        boxSizing: 'border-box',
+                        cursor: 'pointer'
                       }}
                       onFocus={(e) => e.target.style.borderColor = '#d4af37'}
                       onBlur={(e) => e.target.style.borderColor = '#3a3a3a'}
-                    />
+                    >
+                      <option value="">Selecione...</option>
+                      {['Couro', 'Aço Inoxidável', 'Ouro', 'Titânio', 'Borracha', 'Nylon', 'Tecido', 'Cerâmica'].map((material) => (
+                        <option key={material} value={material} style={{ backgroundColor: '#1a1a1a', color: '#ffffff' }}>
+                          {material}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   {/* Case Diameter */}

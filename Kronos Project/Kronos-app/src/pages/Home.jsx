@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { api } from '../lib/api'
 //import ReactIcon{} from 'react-icons/ri'
 
 const logo = '/logo.png'
@@ -11,6 +12,27 @@ function Home() {
   const [newsletterEmail, setNewsletterEmail] = useState('')
   const [newsletterSubmitted, setNewsletterSubmitted] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [featuredProducts, setFeaturedProducts] = useState([])
+
+  useEffect(() => {
+    const fetchFeaturedProducts = async () => {
+      try {
+        const data = await api.get('/products')
+        if (!Array.isArray(data) || data.length === 0) {
+          setFeaturedProducts([])
+          return
+        }
+
+        const shuffled = [...data].sort(() => Math.random() - 0.5)
+        setFeaturedProducts(shuffled.slice(0, Math.min(3, shuffled.length)))
+      } catch (error) {
+        console.error('Error fetching featured products:', error)
+        setFeaturedProducts([])
+      }
+    }
+
+    fetchFeaturedProducts()
+  }, [])
 
   const handleLogout = async () => {
     await signOut()
@@ -394,36 +416,40 @@ function Home() {
             Descubra a nossa coleção exclusiva de relógios de luxo. Cada peça conta uma história de excelência e artesanato impecável.
           </p>
           <div style={{ display: 'flex', gap: '20px' }}>
-            <button
-              style={{
-                padding: '16px 32px',
-                backgroundColor: '#d4af37',
-                color: '#1a1a1a',
-                border: 'none',
-                borderRadius: '4px',
-                fontSize: '16px',
-                fontWeight: '600',
-                cursor: 'pointer'
-              }}
-            >
-              Explorar Coleção →
-            </button>
             <Link
-              to="/signup"
-              style={{
-                padding: '16px 32px',
-                backgroundColor: 'transparent',
-                color: '#ffffff',
-                border: '1px solid #d4af37',
-                borderRadius: '4px',
-                fontSize: '16px',
-                fontWeight: '600',
-                textDecoration: 'none',
-                display: 'inline-block'
-              }}
-            >
-              Criar Conta
-            </Link>
+                to="/catalog"
+                style={{
+                  padding: '16px 32px',
+                  backgroundColor: '#d4af37',
+                  color: '#1a1a1a',
+                  border: 'none',
+                  borderRadius: '4px',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  textDecoration: 'none'
+                }}
+              >
+                Explorar Coleção →
+              </Link>
+            {!user && (
+              <Link
+                to="/signup"
+                style={{
+                  padding: '16px 32px',
+                  backgroundColor: 'transparent',
+                  color: '#ffffff',
+                  border: '1px solid #d4af37',
+                  borderRadius: '4px',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  textDecoration: 'none',
+                  display: 'inline-block'
+                }}
+              >
+                Criar Conta
+              </Link>
+            )}
           </div>
         </div>
       </section>
@@ -601,22 +627,138 @@ function Home() {
           </p>
         </div>
 
-        {/* Coming Soon Message */}
-        <div style={{
-          textAlign: 'center',
-          padding: '80px 40px',
-          backgroundColor: '#0a0a0a',
-          borderRadius: '8px',
-          border: '1px solid #1a1a1a'
-        }}>
-          <p style={{
-            fontSize: '24px',
-            color: '#d4af37',
-            fontWeight: '500'
+        {featuredProducts.length > 0 ? (
+          <>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: `repeat(${featuredProducts.length}, minmax(0, 1fr))`,
+              gap: '24px',
+              maxWidth: '1200px',
+              margin: '0 auto'
+            }}>
+              {featuredProducts.map((product) => (
+                <Link
+                  key={product.id}
+                  to={`/catalog/${product.id}`}
+                  state={{ product }}
+                  style={{
+                    display: 'block',
+                    textDecoration: 'none',
+                    color: 'inherit'
+                  }}
+                >
+                  <article
+                    style={{
+                      backgroundColor: '#050505',
+                      border: '1px solid #202020',
+                      borderRadius: '8px',
+                      overflow: 'hidden'
+                    }}
+                  >
+                  <div style={{ height: '500px', backgroundColor: '#080808' }}>
+                    {product.image ? (
+                      <img
+                        src={product.image}
+                        alt={product.name}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover'
+                        }}
+                      />
+                    ) : (
+                      <div style={{
+                        width: '100%',
+                        height: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#777777',
+                        fontSize: '14px'
+                      }}>
+                        Sem imagem
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ padding: '24px' }}>
+                    <p style={{
+                      margin: 0,
+                      marginBottom: '12px',
+                      color: '#d4af37',
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      letterSpacing: '1.5px',
+                      textTransform: 'uppercase'
+                    }}>
+                      {`Coleção ${product.brand || 'Kronos'}`}
+                    </p>
+
+                    <h3 style={{
+                      margin: 0,
+                      marginBottom: '12px',
+                      color: '#ffffff',
+                      fontSize: '24px',
+                      fontFamily: "'Playfair Display', serif",
+                      fontWeight: '500'
+                    }}>
+                      {product.name}
+                    </h3>
+
+                    <p style={{
+                      margin: 0,
+                      color: '#ffffff',
+                      fontSize: '20px',
+                      fontWeight: '600'
+                    }}>
+                      €{parseFloat(product.price || 0).toLocaleString('pt-PT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </p>
+                  </div>
+                  </article>
+                </Link>
+              ))}
+            </div>
+
+            <div style={{ textAlign: 'center', marginTop: '36px' }}>
+              <Link
+                to="/catalog"
+                onClick={() => {
+                  setTimeout(() => {
+                    window.scrollTo({ top: 0, behavior: 'auto' })
+                  }, 0)
+                }}
+                style={{
+                  display: 'inline-block',
+                  padding: '14px 32px',
+                  border: '2px solid #d4af37',
+                  borderRadius: '6px',
+                  color: '#d4af37',
+                  textDecoration: 'none',
+                  fontSize: '18px',
+                  fontWeight: '700'
+                }}
+              >
+                Ver Toda a Coleção
+              </Link>
+            </div>
+          </>
+        ) : (
+          <div style={{
+            textAlign: 'center',
+            padding: '80px 40px',
+            backgroundColor: '#0a0a0a',
+            borderRadius: '8px',
+            border: '1px solid #1a1a1a'
           }}>
-            Brevemente
-          </p>
-        </div>
+            <p style={{
+              fontSize: '24px',
+              color: '#d4af37',
+              fontWeight: '500'
+            }}>
+              Brevemente
+            </p>
+          </div>
+        )}
       </section>
 
       {/* Newsletter Section */}

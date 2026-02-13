@@ -757,9 +757,14 @@ function Catalog() {
               gap: '32px'
             }}>
               {filteredProducts.map((product) => (
-                <div
+                <Link
                   key={product.id}
+                  to={`/catalog/${product.id}`}
+                  state={{ product }}
                   style={{
+                    display: 'block',
+                    textDecoration: 'none',
+                    color: 'inherit',
                     backgroundColor: '#0a0a0a',
                     borderRadius: '8px',
                     border: '1px solid #1a1a1a',
@@ -843,7 +848,7 @@ function Catalog() {
                       €{parseFloat(product.price).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}

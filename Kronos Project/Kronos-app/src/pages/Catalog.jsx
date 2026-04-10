@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { api } from '../lib/api'
@@ -19,6 +19,9 @@ function Catalog() {
   const [imagePreview, setImagePreview] = useState(null)
   const [products, setProducts] = useState([])
   const [productsLoading, setProductsLoading] = useState(true)
+  const [favoritesOnly, setFavoritesOnly] = useState(false)
+  const [favoriteProductIds, setFavoriteProductIds] = useState([])
+  const [favoritesLoading, setFavoritesLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [productForm, setProductForm] = useState({
     name: '',
@@ -96,8 +99,50 @@ function Catalog() {
     fetchProducts()
   }, [])
 
+  useEffect(() => {
+    if (!user || isAdmin) {
+      setFavoriteProductIds([])
+      setFavoritesOnly(false)
+      setFavoritesLoading(false)
+      return
+    }
+    if (loading) return
+
+    let cancelled = false
+    ;(async () => {
+      setFavoritesLoading(true)
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.access_token) {
+          if (!cancelled) setFavoriteProductIds([])
+          return
+        }
+        const data = await api.get('/favorites', session.access_token)
+        if (!cancelled) setFavoriteProductIds(Array.isArray(data.productIds) ? data.productIds : [])
+      } catch {
+        if (!cancelled) setFavoriteProductIds([])
+      } finally {
+        if (!cancelled) setFavoritesLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [user?.id, isAdmin, loading])
+
+  const favoriteIdSet = useMemo(
+    () => new Set(favoriteProductIds.map((x) => String(x))),
+    [favoriteProductIds],
+  )
+
   // Filter products based on selected filters and search query
   const filteredProducts = products.filter((product) => {
+    if (favoritesOnly && user && !isAdmin) {
+      if (!favoriteIdSet.has(String(product.id))) {
+        return false
+      }
+    }
+
     // Search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
@@ -515,6 +560,65 @@ function Catalog() {
           width: '280px',
           flexShrink: 0
         }}>
+          {user && !isAdmin ? (
+            <>
+              <div style={{ marginBottom: '40px' }}>
+                <h3 style={{
+                  fontSize: '18px',
+                  fontWeight: '600',
+                  color: '#d4af37',
+                  marginBottom: '20px'
+                }}>
+                  Favoritos
+                </h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setFavoritesOnly(false)}
+                    style={{
+                      padding: '12px 16px',
+                      backgroundColor: !favoritesOnly ? '#d4af37' : 'transparent',
+                      color: !favoritesOnly ? '#1a1a1a' : '#ffffff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    Todos os produtos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFavoritesOnly(true)}
+                    disabled={favoritesLoading}
+                    style={{
+                      padding: '12px 16px',
+                      backgroundColor: favoritesOnly ? '#d4af37' : 'transparent',
+                      color: favoritesOnly ? '#1a1a1a' : '#ffffff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      textAlign: 'left',
+                      cursor: favoritesLoading ? 'wait' : 'pointer',
+                      opacity: favoritesLoading ? 0.7 : 1,
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    Apenas favoritos
+                  </button>
+                </div>
+              </div>
+
+              <div style={{
+                height: '1px',
+                backgroundColor: '#1a1a1a',
+                marginBottom: '40px'
+              }} />
+            </>
+          ) : null}
+
           {/* Brand Filter */}
           <div style={{ marginBottom: '40px' }}>
             <h3 style={{
@@ -745,9 +849,11 @@ function Catalog() {
                 fontSize: '14px',
                 color: '#666'
               }}>
-                {products.length === 0 
+                {products.length === 0
                   ? 'Os produtos aparecerão aqui quando estiverem disponíveis'
-                  : 'Tente ajustar os filtros ou a pesquisa'}
+                  : favoritesOnly && user && !isAdmin
+                    ? 'Não tem favoritos que correspondam aos outros filtros, ou ainda não guardou nenhum produto.'
+                    : 'Tente ajustar os filtros ou a pesquisa'}
               </p>
             </div>
           ) : (

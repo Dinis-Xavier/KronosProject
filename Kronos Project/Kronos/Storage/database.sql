@@ -158,3 +158,29 @@ with check (
   bucket_id = 'Watches-Images'
   AND auth.jwt() ->> 'role' = 'authenticated'
 );
+
+-- Favoritos (ver também favorites.sql para script idempotente if not exists)
+create table favorites (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  product_id uuid not null references products (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (user_id, product_id)
+);
+
+create index favorites_user_id_idx on favorites (user_id);
+create index favorites_product_id_idx on favorites (product_id);
+
+alter table favorites enable row level security;
+
+create policy "Users read own favorites"
+on favorites for select
+using (user_id = auth.uid());
+
+create policy "Users insert own favorites"
+on favorites for insert
+with check (user_id = auth.uid());
+
+create policy "Users delete own favorites"
+on favorites for delete
+using (user_id = auth.uid());

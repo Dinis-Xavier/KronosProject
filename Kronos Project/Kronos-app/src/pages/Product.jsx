@@ -6,6 +6,22 @@ import { useAuth } from '../contexts/AuthContext'
 
 const logo = '/logo.png'
 
+function HeartWithSlashIcon() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M12 21s-7-4.35-7-10a4 4 0 0 1 6.5-3 4 4 0 0 1 7 3c0 5.65-7 10-7 10z"
+        stroke="#d4af37"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="rgba(212,175,55,0.12)"
+      />
+      <line x1="5" y1="5" x2="19" y2="19" stroke="#e8e8e8" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 function Product() {
   const { user, signOut, isAdmin } = useAuth()
   const { id } = useParams()
@@ -20,6 +36,8 @@ function Product() {
   const [stockDraft, setStockDraft] = useState('')
   const [stockSaving, setStockSaving] = useState(false)
   const [stockMessage, setStockMessage] = useState({ type: '', text: '' })
+  const [favorited, setFavorited] = useState(null)
+  const [favoriteSubmitting, setFavoriteSubmitting] = useState(false)
 
   const handleLogout = async () => {
     await signOut()
@@ -79,6 +97,93 @@ function Product() {
   useEffect(() => {
     setStockMessage({ type: '', text: '' })
   }, [product?.id])
+
+  useEffect(() => {
+    if (!user || isAdmin || !id) {
+      setFavorited(null)
+      return
+    }
+    setFavorited(null)
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.access_token) {
+          if (!cancelled) setFavorited(false)
+          return
+        }
+        const data = await api.get(
+          `/favorites/check/${encodeURIComponent(id)}`,
+          session.access_token,
+        )
+        if (!cancelled) setFavorited(!!data.favorited)
+      } catch {
+        if (!cancelled) setFavorited(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [user?.id, isAdmin, id])
+
+  const handleAddFavorite = async () => {
+    if (!user || isAdmin) return
+    setFavoriteSubmitting(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        navigate('/login', { state: { from: location.pathname }, replace: false })
+        return
+      }
+      await api.post('/favorites', { productId: id }, session.access_token)
+      setFavorited(true)
+    } catch {
+      // Se já existir ou falhar rede, tentar rever estado com check
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.access_token) {
+          const data = await api.get(
+            `/favorites/check/${encodeURIComponent(id)}`,
+            session.access_token,
+          )
+          if (data.favorited) setFavorited(true)
+        }
+      } catch {
+        /* ignore */
+      }
+    } finally {
+      setFavoriteSubmitting(false)
+    }
+  }
+
+  const handleRemoveFavorite = async () => {
+    if (!user || isAdmin) return
+    setFavoriteSubmitting(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        navigate('/login', { state: { from: location.pathname }, replace: false })
+        return
+      }
+      await api.del(`/favorites/${encodeURIComponent(id)}`, session.access_token)
+      setFavorited(false)
+    } catch {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.access_token) {
+          const data = await api.get(
+            `/favorites/check/${encodeURIComponent(id)}`,
+            session.access_token,
+          )
+          setFavorited(!!data.favorited)
+        }
+      } catch {
+        /* ignore */
+      }
+    } finally {
+      setFavoriteSubmitting(false)
+    }
+  }
 
   const handleSaveStock = async () => {
     setStockMessage({ type: '', text: '' })
@@ -456,25 +561,32 @@ function Product() {
                   cursor: 'pointer',
                 }}
               >
-                Adicionar ao Carrinho
+                Checkout
               </button>
 
-              <button
-                type="button"
-                style={{
-                  width: '72px',
-                  height: '56px',
-                  backgroundColor: 'transparent',
-                  color: '#d0d0d0',
-                  border: '1px solid #2a2a2a',
-                  borderRadius: '6px',
-                  fontSize: '24px',
-                  cursor: 'pointer',
-                }}
-                aria-label="Adicionar aos favoritos"
-              >
-                ♡
-              </button>
+              {user && !isAdmin && favorited !== null ? (
+                <button
+                  type="button"
+                  onClick={favorited ? handleRemoveFavorite : handleAddFavorite}
+                  disabled={favoriteSubmitting}
+                  style={{
+                    width: '72px',
+                    height: '56px',
+                    backgroundColor: 'transparent',
+                    color: favoriteSubmitting ? '#555' : '#d0d0d0',
+                    border: '1px solid #2a2a2a',
+                    borderRadius: '6px',
+                    fontSize: '24px',
+                    cursor: favoriteSubmitting ? 'wait' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                  aria-label={favorited ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+                >
+                  {favorited ? <HeartWithSlashIcon /> : '♡'}
+                </button>
+              ) : null}
             </div>
 
             <div style={{

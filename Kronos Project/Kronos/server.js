@@ -247,6 +247,104 @@ app.patch('/api/products/:id', authenticateUser, requireAdmin, async (req, res) 
   }
 })
 
+// Favorites (clientes autenticados; a API usa service role — RLS aplica-se só a acesso direto Supabase)
+app.get('/api/favorites', authenticateUser, async (req, res) => {
+  try {
+    noStoreJson(res)
+    const { data, error } = await supabase
+      .from('favorites')
+      .select('product_id')
+      .eq('user_id', req.user.id)
+
+    if (error) throw error
+    const productIds = (data || []).map((row) => row.product_id)
+    res.json({ productIds })
+  } catch (error) {
+    console.error('Error listing favorites:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+app.get('/api/favorites/check/:productId', authenticateUser, async (req, res) => {
+  try {
+    noStoreJson(res)
+    const { productId } = req.params
+    const { data, error } = await supabase
+      .from('favorites')
+      .select('id')
+      .eq('user_id', req.user.id)
+      .eq('product_id', productId)
+      .maybeSingle()
+
+    if (error) throw error
+    res.json({ favorited: !!data })
+  } catch (error) {
+    console.error('Error checking favorite:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+app.post('/api/favorites', authenticateUser, async (req, res) => {
+  try {
+    const productId = req.body?.productId
+    if (!productId) {
+      return res.status(400).json({ error: 'productId is required' })
+    }
+
+    const { data: exists, error: pErr } = await supabase
+      .from('products')
+      .select('id')
+      .eq('id', productId)
+      .maybeSingle()
+
+    if (pErr) throw pErr
+    if (!exists) {
+      return res.status(404).json({ error: 'Product not found' })
+    }
+
+    const { error } = await supabase
+      .from('favorites')
+      .insert({ user_id: req.user.id, product_id: productId })
+
+    if (error) {
+      if (error.code === '23505') {
+        noStoreJson(res)
+        return res.status(200).json({ ok: true, already: true })
+      }
+      throw error
+    }
+
+    noStoreJson(res)
+    res.status(201).json({ ok: true })
+  } catch (error) {
+    console.error('Error adding favorite:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+app.delete('/api/favorites/:productId', authenticateUser, async (req, res) => {
+  try {
+    noStoreJson(res)
+    const { productId } = req.params
+    const { data, error } = await supabase
+      .from('favorites')
+      .delete()
+      .eq('user_id', req.user.id)
+      .eq('product_id', productId)
+      .select('id')
+
+    if (error) throw error
+    if (!data || data.length === 0) {
+      return res.status(404).json({ error: 'Favorite not found' })
+    }
+
+    res.json({ ok: true })
+  } catch (error) {
+    console.error('Error removing favorite:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
 // Delete product (admin only)
 app.delete('/api/products/:id', authenticateUser, requireAdmin, async (req, res) => {
   try {

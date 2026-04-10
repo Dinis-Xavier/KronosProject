@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, Link, useSearchParams } from 'react-router-dom'
+import { useNavigate, Link, Navigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
 
 const logo = '/logo.png'
 
@@ -13,6 +14,7 @@ function Login() {
   const [emailConfirmed, setEmailConfirmed] = useState(false)
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
+  const { user: authUser, loading: authLoading } = useAuth()
 
   // Verificar se veio do redirecionamento de confirmação de email
   useEffect(() => {
@@ -28,12 +30,15 @@ function Login() {
       // Tentar obter a sessão (pode já estar criada)
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session) {
-          // Se já tem sessão, redirecionar para home
-          navigate('/')
+          navigate('/home')
         }
       })
     }
   }, [searchParams, setSearchParams, navigate])
+
+  if (!authLoading && authUser) {
+    return <Navigate to="/home" replace />
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -55,8 +60,7 @@ function Login() {
         throw authError
       }
 
-      // Redirecionar para home após login bem-sucedido
-      navigate('/')
+      navigate('/home')
     } catch (err) {
       setError(err.message || 'Erro ao fazer login')
     } finally {

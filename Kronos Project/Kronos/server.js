@@ -81,9 +81,37 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Kronos API is running' })
 })
 
-// Products routes
+// Products routes (no-store: evita respostas em cache no browser após alterações)
+const noStoreJson = (res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate')
+  res.set('Pragma', 'no-cache')
+}
+
+app.get('/api/products/:id', async (req, res) => {
+  try {
+    noStoreJson(res)
+    const { id } = req.params
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({ error: 'Product not found' })
+      }
+      throw error
+    }
+    res.json(data)
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
 app.get('/api/products', async (req, res) => {
   try {
+    noStoreJson(res)
     const { data, error } = await supabase
       .from('products')
       .select('*')
@@ -180,6 +208,63 @@ app.post('/api/products/upload-image', authenticateUser, requireAdmin, upload.si
     res.json({ imageUrl: publicUrl })
   } catch (error) {
     console.error('Error uploading image:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Update product (admin only) — partial fields, e.g. stock
+app.patch('/api/products/:id', authenticateUser, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params
+    const { stock } = req.body
+
+    if (stock === undefined || stock === null) {
+      return res.status(400).json({ error: 'Stock is required' })
+    }
+
+    const n = Number.parseInt(String(stock), 10)
+    if (Number.isNaN(n) || n < 0) {
+      return res.status(400).json({ error: 'Invalid stock value' })
+    }
+
+    const { data: product, error } = await supabase
+      .from('products')
+      .update({ stock: n })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) throw error
+    if (!product) {
+      return res.status(404).json({ error: 'Product not found' })
+    }
+
+    noStoreJson(res)
+    res.json(product)
+  } catch (error) {
+    console.error('Error updating product:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Delete product (admin only)
+app.delete('/api/products/:id', authenticateUser, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params
+    const { data, error } = await supabase
+      .from('products')
+      .delete()
+      .eq('id', id)
+      .select('id')
+
+    if (error) throw error
+    if (!data || data.length === 0) {
+      return res.status(404).json({ error: 'Product not found' })
+    }
+
+    res.json({ success: true })
+  } catch (error) {
+    console.error('Error deleting product:', error)
     res.status(500).json({ error: error.message })
   }
 })

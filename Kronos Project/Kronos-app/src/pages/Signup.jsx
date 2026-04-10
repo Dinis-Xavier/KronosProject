@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, Navigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
 
 const logo = '/logo.png'
 
@@ -15,6 +16,11 @@ function Signup() {
   const [success, setSuccess] = useState(false)
   const [needsConfirmation, setNeedsConfirmation] = useState(false)
   const navigate = useNavigate()
+  const { user: authUser, loading: authLoading } = useAuth()
+
+  if (!authLoading && authUser) {
+    return <Navigate to="/home" replace />
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -61,7 +67,7 @@ function Signup() {
         // Caso raro: se session existir (confirmação desativada)
         setSuccess(true)
         setTimeout(() => {
-          navigate('/')
+          navigate('/home')
         }, 2000)
       }
     } catch (err) {

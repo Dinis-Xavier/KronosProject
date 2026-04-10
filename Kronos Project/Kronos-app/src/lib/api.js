@@ -2,7 +2,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
 export const api = {
   async get(endpoint) {
-    const response = await fetch(`${API_URL}${endpoint}`)
+    const response = await fetch(`${API_URL}${endpoint}`, { cache: 'no-store' })
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: response.statusText }))
       throw new Error(error.error || 'Request failed')
@@ -30,6 +30,39 @@ export const api = {
       throw new Error(error.error || 'Request failed')
     }
     return response.json()
+  },
+
+  async patch(endpoint, data, token) {
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }))
+      throw new Error(error.error || 'Request failed')
+    }
+    return response.json()
+  },
+
+  async del(endpoint, token) {
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }))
+      throw new Error(error.error || 'Request failed')
+    }
+
+    return response.json().catch(() => null)
   },
 
   async uploadImage(file, token) {

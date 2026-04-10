@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { api } from '../lib/api'
 //import ReactIcon{} from 'react-icons/ri'
@@ -73,6 +73,10 @@ function Home() {
     )
   }
 
+  if (!user) {
+    return <Navigate to="/" replace />
+  }
+
   return (
     <div style={{ backgroundColor: '#000000', color: '#ffffff', minHeight: '100vh' }}>
       {/* Header/Navbar */}
@@ -119,106 +123,68 @@ function Home() {
 
         {/* Action Buttons / User */}
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-          {user ? (
-            <>
-              <button
-                type="button"
-                onClick={() => {
-                  if (isAdmin) setDrawerOpen(true)
-                }}
-                style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '10px',
-                padding: '8px 12px',
-                borderRadius: '999px',
-                border: '1px solid #2a2a2a',
-                backgroundColor: 'rgba(255,255,255,0.03)',
-                color: '#ffffff',
-                  maxWidth: '280px',
-                  cursor: isAdmin ? 'pointer' : 'default'
-                }}
-                aria-label={isAdmin ? 'Abrir menu de admin' : 'Utilizador'}
-              >
-                <div style={{
-                  width: '34px',
-                  height: '34px',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: 'rgba(212,175,55,0.12)',
-                  border: '1px solid rgba(212,175,55,0.35)',
-                  flexShrink: 0
-                }}>
-                  {/* simple user icon */}
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M12 12c2.761 0 5-2.239 5-5S14.761 2 12 2 7 4.239 7 7s2.239 5 5 5Z" stroke="#d4af37" strokeWidth="2"/>
-                    <path d="M20 22a8 8 0 1 0-16 0" stroke="#d4af37" strokeWidth="2" strokeLinecap="round"/>
-                  </svg>
-                </div>
-                <span style={{
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  color: '#ffffff',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis'
-                }}>
-                  {user.user_metadata?.name || user.email}
-                </span>
-              </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (isAdmin) setDrawerOpen(true)
+            }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '8px 12px',
+              borderRadius: '999px',
+              border: '1px solid #2a2a2a',
+              backgroundColor: 'rgba(255,255,255,0.03)',
+              color: '#ffffff',
+              maxWidth: '280px',
+              cursor: isAdmin ? 'pointer' : 'default'
+            }}
+            aria-label={isAdmin ? 'Abrir menu de admin' : 'Utilizador'}
+          >
+            <div style={{
+              width: '34px',
+              height: '34px',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: 'rgba(212,175,55,0.12)',
+              border: '1px solid rgba(212,175,55,0.35)',
+              flexShrink: 0
+            }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 12c2.761 0 5-2.239 5-5S14.761 2 12 2 7 4.239 7 7s2.239 5 5 5Z" stroke="#d4af37" strokeWidth="2"/>
+                <path d="M20 22a8 8 0 1 0-16 0" stroke="#d4af37" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+            </div>
+            <span style={{
+              fontSize: '14px',
+              fontWeight: '500',
+              color: '#ffffff',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}>
+              {user.user_metadata?.name || user.email}
+            </span>
+          </button>
 
-              <button
-                onClick={handleLogout}
-                style={{
-                  padding: '10px 16px',
-                  backgroundColor: 'transparent',
-                  color: 'hsl(45, 10%, 60%)',
-                  border: '1px solid #2a2a2a',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: '500'
-                }}
-              >
-                Sair
-              </button>
-            </>
-          ) : (
-            <>
-              <Link
-                to="/login"
-                style={{
-                  padding: '10px 24px',
-                  backgroundColor: 'transparent',
-                  color: '#ffffff',
-                  border: '1px solid #ffffff',
-                  borderRadius: '4px',
-                  textDecoration: 'none',
-                  fontSize: '14px',
-                  fontWeight: '500'
-                }}
-              >
-                ENTRAR
-              </Link>
-              <Link
-                to="/signup"
-                style={{
-                  padding: '10px 24px',
-                  backgroundColor: '#d4af37',
-                  color: '#1a1a1a',
-                  border: 'none',
-                  borderRadius: '4px',
-                  textDecoration: 'none',
-                  fontSize: '14px',
-                  fontWeight: '500'
-                }}
-              >
-                Criar Conta
-              </Link>
-            </>
-          )}
+          <button
+            onClick={handleLogout}
+            style={{
+              padding: '10px 16px',
+              backgroundColor: 'transparent',
+              color: 'hsl(45, 10%, 60%)',
+              border: '1px solid #2a2a2a',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500'
+            }}
+          >
+            Sair
+          </button>
         </div>
       </header>
 
@@ -432,24 +398,6 @@ function Home() {
               >
                 Explorar Coleção →
               </Link>
-            {!user && (
-              <Link
-                to="/signup"
-                style={{
-                  padding: '16px 32px',
-                  backgroundColor: 'transparent',
-                  color: '#ffffff',
-                  border: '1px solid #d4af37',
-                  borderRadius: '4px',
-                  fontSize: '16px',
-                  fontWeight: '600',
-                  textDecoration: 'none',
-                  display: 'inline-block'
-                }}
-              >
-                Criar Conta
-              </Link>
-            )}
           </div>
         </div>
       </section>

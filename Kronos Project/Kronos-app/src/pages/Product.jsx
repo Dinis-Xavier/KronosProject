@@ -1,17 +1,25 @@
 import { useEffect, useState } from 'react'
-import { Link, useLocation, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../lib/api'
+import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
 const logo = '/logo.png'
 
 function Product() {
-  const { user, signOut } = useAuth()
+  const { user, signOut, isAdmin } = useAuth()
   const { id } = useParams()
+  const navigate = useNavigate()
   const location = useLocation()
   const [product, setProduct] = useState(location.state?.product || null)
   const [loading, setLoading] = useState(!location.state?.product)
   const [error, setError] = useState('')
+  const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false)
+  const [removeLoading, setRemoveLoading] = useState(false)
+  const [removeError, setRemoveError] = useState('')
+  const [stockDraft, setStockDraft] = useState('')
+  const [stockSaving, setStockSaving] = useState(false)
+  const [stockMessage, setStockMessage] = useState({ type: '', text: '' })
 
   const handleLogout = async () => {
     await signOut()
@@ -22,34 +30,31 @@ function Product() {
   }, [id])
 
   useEffect(() => {
-    const productFromState = location.state?.product
-    if (productFromState && String(productFromState.id) === String(id)) {
-      setProduct(productFromState)
+    let isMounted = true
+    const fromState = location.state?.product
+    const stateMatches = fromState && String(fromState.id) === String(id)
+
+    if (stateMatches) {
+      setProduct(fromState)
       setLoading(false)
       setError('')
-      return
+    } else {
+      setLoading(true)
     }
-
-    let isMounted = true
 
     const fetchProduct = async () => {
       try {
-        setLoading(true)
-        const allProducts = await api.get('/products')
-        const foundProduct = allProducts.find((item) => String(item.id) === String(id))
-
-        if (!foundProduct) {
-          throw new Error('Produto não encontrado')
-        }
-
+        const fresh = await api.get(`/products/${encodeURIComponent(id)}`)
         if (isMounted) {
-          setProduct(foundProduct)
+          setProduct(fresh)
           setError('')
         }
       } catch (err) {
         if (isMounted) {
           setError(err.message || 'Erro ao carregar o produto')
-          setProduct(null)
+          if (!stateMatches) {
+            setProduct(null)
+          }
         }
       } finally {
         if (isMounted) {
@@ -64,6 +69,58 @@ function Product() {
       isMounted = false
     }
   }, [id, location.state])
+
+  useEffect(() => {
+    if (product) {
+      setStockDraft(String(product.stock ?? 0))
+    }
+  }, [product?.id, product?.stock])
+
+  useEffect(() => {
+    setStockMessage({ type: '', text: '' })
+  }, [product?.id])
+
+  const handleSaveStock = async () => {
+    setStockMessage({ type: '', text: '' })
+    const parsed = Number.parseInt(String(stockDraft).trim(), 10)
+    if (Number.isNaN(parsed) || parsed < 0) {
+      setStockMessage({ type: 'error', text: 'Indique um número inteiro ≥ 0.' })
+      return
+    }
+    setStockSaving(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        throw new Error('Sessão expirada. Volte a entrar.')
+      }
+      const updated = await api.patch(`/products/${id}`, { stock: parsed }, session.access_token)
+      setProduct((prev) => (prev ? { ...prev, stock: updated.stock } : prev))
+      setStockDraft(String(updated.stock ?? parsed))
+      setStockMessage({ type: 'ok', text: 'Stock atualizado.' })
+    } catch (err) {
+      setStockMessage({ type: 'error', text: err.message || 'Não foi possível guardar o stock.' })
+    } finally {
+      setStockSaving(false)
+    }
+  }
+
+  const handleConfirmRemove = async () => {
+    setRemoveError('')
+    setRemoveLoading(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        throw new Error('Sessão expirada. Volte a entrar.')
+      }
+      await api.del(`/products/${id}`, session.access_token)
+      setConfirmRemoveOpen(false)
+      navigate('/catalog', { replace: true })
+    } catch (err) {
+      setRemoveError(err.message || 'Não foi possível remover o produto')
+    } finally {
+      setRemoveLoading(false)
+    }
+  }
 
   const formatPrice = (value) => {
     const numeric = Number.parseFloat(value)
@@ -134,7 +191,7 @@ function Product() {
         zIndex: 100,
         backdropFilter: 'blur(10px)',
       }}>
-        <Link to="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
+        <Link to="/home" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
           <img
             src={logo}
             alt="KRONOS"
@@ -465,7 +522,195 @@ function Product() {
             </div>
           </div>
         </section>
+
+        {isAdmin && (
+          <div style={{
+            marginTop: '48px',
+            paddingTop: '32px',
+            borderTop: '1px solid #1a1a1a',
+            maxWidth: '520px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '28px',
+          }}>
+            <div>
+              <h3 style={{
+                margin: '0 0 14px',
+                fontSize: '18px',
+                fontWeight: '600',
+                color: '#d4af37',
+                fontFamily: "'Playfair Display', serif",
+              }}>
+                Stock (admin)
+              </h3>
+              <p style={{ margin: '0 0 12px', color: '#8a8a8a', fontSize: '14px' }}>
+                Stock atual na loja:{' '}
+                <strong style={{ color: '#ffffff' }}>{product.stock ?? 0}</strong> unidades
+              </p>
+              <label htmlFor="admin-stock" style={{ display: 'block', marginBottom: '8px', color: '#b0b0b0', fontSize: '14px' }}>
+                Alterar stock
+              </label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
+                <input
+                  id="admin-stock"
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={stockDraft}
+                  onChange={(e) => setStockDraft(e.target.value)}
+                  disabled={stockSaving}
+                  style={{
+                    width: '120px',
+                    padding: '12px 14px',
+                    backgroundColor: '#1a1a1a',
+                    border: '1px solid #3a3a3a',
+                    borderRadius: '8px',
+                    fontSize: '16px',
+                    color: '#ffffff',
+                    boxSizing: 'border-box',
+                  }}
+                />
+                <button
+                  type="button"
+                  disabled={stockSaving}
+                  onClick={handleSaveStock}
+                  style={{
+                    padding: '12px 22px',
+                    backgroundColor: stockSaving ? '#3a3a3a' : '#d4af37',
+                    color: stockSaving ? '#888' : '#1a1a1a',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: stockSaving ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {stockSaving ? 'A guardar…' : 'Guardar stock'}
+                </button>
+              </div>
+              {stockMessage.text ? (
+                <p style={{
+                  margin: '12px 0 0',
+                  fontSize: '14px',
+                  color: stockMessage.type === 'ok' ? '#6bff6b' : '#ff6b6b',
+                }}>
+                  {stockMessage.text}
+                </p>
+              ) : null}
+            </div>
+
+            <div>
+              <button
+                type="button"
+                onClick={() => {
+                  setRemoveError('')
+                  setConfirmRemoveOpen(true)
+                }}
+                style={{
+                  padding: '14px 28px',
+                  backgroundColor: 'transparent',
+                  color: '#ff6b6b',
+                  border: '1px solid #5a2f2f',
+                  borderRadius: '8px',
+                  fontSize: '15px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                }}
+              >
+                Remover produto
+              </button>
+            </div>
+          </div>
+        )}
       </main>
+
+      {confirmRemoveOpen && (
+        <>
+          <div
+            role="presentation"
+            onClick={() => !removeLoading && setConfirmRemoveOpen(false)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: 'rgba(0,0,0,0.65)',
+              zIndex: 200,
+            }}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirm-remove-title"
+            style={{
+              position: 'fixed',
+              left: '50%',
+              top: '50%',
+              transform: 'translate(-50%, -50%)',
+              zIndex: 201,
+              width: 'min(420px, calc(100vw - 32px))',
+              padding: '28px',
+              backgroundColor: '#121212',
+              border: '1px solid #2a2a2a',
+              borderRadius: '12px',
+              boxShadow: '0 24px 48px rgba(0,0,0,0.5)',
+            }}
+          >
+            <h2
+              id="confirm-remove-title"
+              style={{
+                margin: '0 0 12px',
+                fontSize: '20px',
+                fontWeight: '600',
+                color: '#ffffff',
+                fontFamily: "'Playfair Display', serif",
+              }}
+            >
+              Confirmar remoção
+            </h2>
+            <p style={{ margin: '0 0 20px', color: '#b0b0b0', fontSize: '15px', lineHeight: 1.5 }}>
+              Tem a certeza que deseja remover este produto? Esta ação não pode ser desfeita.
+            </p>
+            {removeError ? (
+              <p style={{ margin: '0 0 16px', color: '#ff6b6b', fontSize: '14px' }}>{removeError}</p>
+            ) : null}
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                disabled={removeLoading}
+                onClick={() => setConfirmRemoveOpen(false)}
+                style={{
+                  padding: '12px 20px',
+                  backgroundColor: 'transparent',
+                  color: '#cccccc',
+                  border: '1px solid #3a3a3a',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: removeLoading ? 'not-allowed' : 'pointer',
+                }}
+              >
+                Não
+              </button>
+              <button
+                type="button"
+                disabled={removeLoading}
+                onClick={handleConfirmRemove}
+                style={{
+                  padding: '12px 20px',
+                  backgroundColor: '#5a2020',
+                  color: '#ffffff',
+                  border: '1px solid #7a3030',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: removeLoading ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {removeLoading ? 'A remover…' : 'Sim, remover'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       <footer style={{
         backgroundColor: '#000000',
@@ -506,7 +751,7 @@ function Product() {
           <div>
             <h4 style={{ margin: '0 0 14px', color: '#ffffff' }}>Navegação</h4>
             <div style={{ display: 'grid', gap: '10px' }}>
-              <Link to="/" style={{ color: '#cccccc', textDecoration: 'none', fontSize: '14px' }}>Início</Link>
+              <Link to="/home" style={{ color: '#cccccc', textDecoration: 'none', fontSize: '14px' }}>Início</Link>
               <Link to="/catalog" style={{ color: '#cccccc', textDecoration: 'none', fontSize: '14px' }}>Coleções</Link>
               <a href="#" style={{ color: '#cccccc', textDecoration: 'none', fontSize: '14px' }}>Novidades</a>
               <a href="#" style={{ color: '#cccccc', textDecoration: 'none', fontSize: '14px' }}>Sobre Nós</a>

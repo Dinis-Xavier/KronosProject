@@ -237,7 +237,7 @@ function Catalog() {
         backgroundColor: 'rgba(0, 0, 0, 0.95)'
       }}>
         {/* Logo */}
-        <Link to="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
+        <Link to="/home" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
           <img 
             src={logo} 
             alt="KRONOS" 
@@ -1495,7 +1495,7 @@ function Catalog() {
             </h4>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
               <li style={{ marginBottom: '12px' }}>
-                <Link to="/" style={{ color: '#cccccc', textDecoration: 'none', fontSize: '14px' }}>Início</Link>
+                <Link to="/home" style={{ color: '#cccccc', textDecoration: 'none', fontSize: '14px' }}>Início</Link>
               </li>
               <li style={{ marginBottom: '12px' }}>
                 <Link to="/catalog" style={{ color: '#cccccc', textDecoration: 'none', fontSize: '14px' }}>Coleções</Link>

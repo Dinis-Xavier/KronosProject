@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext({})
@@ -12,6 +13,7 @@ export const useAuth = () => {
 }
 
 export const AuthProvider = ({ children }) => {
+  const navigate = useNavigate()
   const [user, setUser] = useState(null)
   const [role, setRole] = useState(null) // 'user' | 'admin'
   const [loading, setLoading] = useState(true)
@@ -80,6 +82,7 @@ export const AuthProvider = ({ children }) => {
   const signOut = async () => {
     await supabase.auth.signOut()
     setRole(null)
+    navigate('/', { replace: true })
   }
 
   const value = {

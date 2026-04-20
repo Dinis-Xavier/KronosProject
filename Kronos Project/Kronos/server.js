@@ -35,6 +35,130 @@ if (!supabaseUrl || !supabaseServiceKey) {
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
+// PayPal config (Sandbox)
+const PAYPAL_BASE_URL = process.env.PAYPAL_BASE_URL || 'https://api-m.sandbox.paypal.com'
+const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID
+const PAYPAL_SECRET = process.env.PAYPAL_SECRET
+const PAYPAL_CURRENCY = process.env.PAYPAL_CURRENCY || 'EUR'
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173'
+
+const getPayPalAccessToken = async () => {
+  if (!PAYPAL_CLIENT_ID || !PAYPAL_SECRET) {
+    throw new Error('Missing PayPal environment variables')
+  }
+
+  const basic = Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_SECRET}`).toString('base64')
+  const res = await fetch(`${PAYPAL_BASE_URL}/v1/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${basic}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: 'grant_type=client_credentials',
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`PayPal auth failed (${res.status}): ${text || res.statusText}`)
+  }
+
+  const json = await res.json()
+  if (!json?.access_token) throw new Error('PayPal auth failed: no access_token')
+  return json.access_token
+}
+
+const createPayPalOrder = async ({ total, orderId, productName }) => {
+  const accessToken = await getPayPalAccessToken()
+  const payload = {
+    intent: 'CAPTURE',
+    purchase_units: [
+      {
+        custom_id: orderId,
+        description: productName || 'KRONOS order',
+        amount: {
+          currency_code: PAYPAL_CURRENCY,
+          value: Number(total).toFixed(2),
+        },
+      },
+    ],
+    application_context: {
+      brand_name: 'KRONOS',
+      user_action: 'PAY_NOW',
+      return_url: `${FRONTEND_URL}/checkout/return`,
+      cancel_url: `${FRONTEND_URL}/checkout/cancel`,
+    },
+  }
+
+  const res = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`PayPal create order failed (${res.status}): ${text || res.statusText}`)
+  }
+
+  return res.json()
+}
+
+const capturePayPalOrder = async (paypalOrderId) => {
+  const accessToken = await getPayPalAccessToken()
+  const res = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}/capture`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+  })
+
+  if (!res.ok) {
+    const bodyText = await res.text().catch(() => '')
+    let bodyJson = null
+    try {
+      bodyJson = bodyText ? JSON.parse(bodyText) : null
+    } catch {
+      bodyJson = null
+    }
+
+    const alreadyCaptured =
+      res.status === 422 &&
+      bodyJson?.name === 'UNPROCESSABLE_ENTITY' &&
+      Array.isArray(bodyJson?.details) &&
+      bodyJson.details.some((d) => d?.issue === 'ORDER_ALREADY_CAPTURED')
+
+    if (alreadyCaptured) {
+      return { alreadyCaptured: true, body: bodyJson }
+    }
+
+    throw new Error(`PayPal capture failed (${res.status}): ${bodyText || res.statusText}`)
+  }
+
+  return { alreadyCaptured: false, body: await res.json() }
+}
+
+const getPayPalOrderDetails = async (paypalOrderId) => {
+  const accessToken = await getPayPalAccessToken()
+  const res = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`PayPal get order failed (${res.status}): ${text || res.statusText}`)
+  }
+
+  return res.json()
+}
+
 // Middleware para verificar autenticação
 const authenticateUser = async (req, res, next) => {
   const token = req.headers.authorization?.replace('Bearer ', '')
@@ -363,6 +487,296 @@ app.delete('/api/products/:id', authenticateUser, requireAdmin, async (req, res)
     res.json({ success: true })
   } catch (error) {
     console.error('Error deleting product:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Admin dashboard metrics
+app.get('/api/admin/dashboard', authenticateUser, requireAdmin, async (req, res) => {
+  try {
+    noStoreJson(res)
+
+    // Users count (auth.users) via admin API; paginate
+    let usersCount = 0
+    let page = 1
+    const perPage = 1000
+    for (;;) {
+      const { data, error } = await supabase.auth.admin.listUsers({ page, perPage })
+      if (error) throw error
+      const users = data?.users || []
+      usersCount += users.length
+      if (users.length < perPage) break
+      page += 1
+    }
+
+    // Products & stock
+    const { data: products, error: prodErr } = await supabase
+      .from('products')
+      .select('id,stock')
+
+    if (prodErr) throw prodErr
+
+    const productsCount = (products || []).length
+    let totalStock = 0
+    let outOfStockProducts = 0
+    for (const p of products || []) {
+      const s = Number.parseInt(String(p.stock ?? 0), 10)
+      if (!Number.isNaN(s)) totalStock += s
+      if ((p.stock ?? 0) <= 0) outOfStockProducts += 1
+    }
+
+    // Revenue + paid orders (for country + bestseller)
+    const { data: paidOrders, error: ordErr } = await supabase
+      .from('orders')
+      .select('id,total,address')
+      .eq('status', 'paid')
+
+    if (ordErr) throw ordErr
+
+    const totalMoney = (paidOrders || []).reduce((sum, o) => sum + Number.parseFloat(String(o.total ?? 0) || '0'), 0)
+
+    // Country with most purchases (parse from concatenated address)
+    const countryCounts = new Map()
+    const countryFromAddress = (address) => {
+      if (!address) return null
+      const m = String(address).match(/Pa[ií]s:\s*([A-Za-z]{2})/i)
+      return m ? m[1].toUpperCase() : null
+    }
+
+    for (const o of paidOrders || []) {
+      const c = countryFromAddress(o.address)
+      if (!c) continue
+      countryCounts.set(c, (countryCounts.get(c) || 0) + 1)
+    }
+
+    let topCountry = null
+    let topCountryPurchases = 0
+    for (const [c, count] of countryCounts.entries()) {
+      if (count > topCountryPurchases) {
+        topCountry = c
+        topCountryPurchases = count
+      }
+    }
+
+    // Best seller (by quantity) among paid orders
+    const paidOrderIds = (paidOrders || []).map((o) => o.id)
+    let bestSeller = null
+    if (paidOrderIds.length > 0) {
+      const { data: items, error: itemsErr } = await supabase
+        .from('order_items')
+        .select('product_id,quantity,products(name)')
+        .in('order_id', paidOrderIds)
+
+      if (itemsErr) throw itemsErr
+
+      const qtyByProduct = new Map()
+      const nameByProduct = new Map()
+      for (const it of items || []) {
+        const pid = it.product_id
+        const qty = Number.parseInt(String(it.quantity ?? 0), 10)
+        if (!pid || Number.isNaN(qty)) continue
+        qtyByProduct.set(pid, (qtyByProduct.get(pid) || 0) + qty)
+        const name = it?.products?.name
+        if (name && !nameByProduct.has(pid)) nameByProduct.set(pid, name)
+      }
+
+      let bestProductId = null
+      let bestQty = 0
+      for (const [pid, qty] of qtyByProduct.entries()) {
+        if (qty > bestQty) {
+          bestProductId = pid
+          bestQty = qty
+        }
+      }
+
+      if (bestProductId) {
+        bestSeller = {
+          productId: bestProductId,
+          name: nameByProduct.get(bestProductId) || null,
+          quantity: bestQty,
+        }
+      }
+    }
+
+    res.json({
+      usersCount,
+      totalMoney,
+      productsCount,
+      totalStock,
+      outOfStockProducts,
+      topCountry,
+      topCountryPurchases,
+      bestSeller,
+      currency: PAYPAL_CURRENCY,
+    })
+  } catch (error) {
+    console.error('Error loading admin dashboard:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// PayPal routes (authenticated users)
+app.post('/api/paypal/create-order', authenticateUser, async (req, res) => {
+  try {
+    const productId = req.body?.productId
+    const address = String(req.body?.address || '').trim()
+
+    if (!productId) return res.status(400).json({ error: 'productId is required' })
+    if (!address) return res.status(400).json({ error: 'address is required' })
+
+    const { data: product, error: pErr } = await supabase
+      .from('products')
+      .select('id,name,price,stock')
+      .eq('id', productId)
+      .single()
+
+    if (pErr) {
+      if (pErr.code === 'PGRST116') return res.status(404).json({ error: 'Product not found' })
+      throw pErr
+    }
+
+    if (!product) return res.status(404).json({ error: 'Product not found' })
+    if ((product.stock ?? 0) <= 0) return res.status(400).json({ error: 'Product out of stock' })
+
+    const total = Number.parseFloat(String(product.price))
+    if (Number.isNaN(total) || total <= 0) return res.status(400).json({ error: 'Invalid product price' })
+
+    const { data: order, error: oErr } = await supabase
+      .from('orders')
+      .insert([{
+        user_id: req.user.id,
+        total,
+        status: 'pending',
+        address,
+      }])
+      .select()
+      .single()
+
+    if (oErr) throw oErr
+
+    const { error: iErr } = await supabase
+      .from('order_items')
+      .insert([{
+        order_id: order.id,
+        product_id: product.id,
+        quantity: 1,
+        price: total,
+      }])
+
+    if (iErr) throw iErr
+
+    const paypalOrder = await createPayPalOrder({
+      total,
+      orderId: order.id,
+      productName: product.name,
+    })
+
+    const approveUrl = Array.isArray(paypalOrder?.links)
+      ? paypalOrder.links.find((l) => l?.rel === 'approve')?.href
+      : null
+
+    if (!approveUrl) {
+      return res.status(500).json({ error: 'PayPal approve link not found' })
+    }
+
+    noStoreJson(res)
+    res.json({ approveUrl })
+  } catch (error) {
+    console.error('Error creating PayPal order:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+app.post('/api/paypal/capture-order', authenticateUser, async (req, res) => {
+  try {
+    const paypalOrderId = String(req.body?.paypalOrderId || '').trim()
+    if (!paypalOrderId) return res.status(400).json({ error: 'paypalOrderId is required' })
+
+    const captureResult = await capturePayPalOrder(paypalOrderId)
+    const capture = captureResult?.body
+
+    let purchaseUnit = Array.isArray(capture?.purchase_units) ? capture.purchase_units[0] : null
+    let orderId = purchaseUnit?.custom_id
+
+    // Some PayPal capture responses omit custom_id; fetch order details as fallback.
+    if (!orderId) {
+      const details = await getPayPalOrderDetails(paypalOrderId)
+      purchaseUnit = Array.isArray(details?.purchase_units) ? details.purchase_units[0] : null
+      orderId = purchaseUnit?.custom_id
+    }
+
+    if (!orderId) return res.status(500).json({ error: 'Missing custom_id (orderId) in PayPal response' })
+
+    // Mark as paid only once (prevents double stock decrement)
+    const { data: updated, error: uErr } = await supabase
+      .from('orders')
+      .update({ status: 'paid' })
+      .eq('id', orderId)
+      .eq('user_id', req.user.id)
+      .eq('status', 'pending')
+      .select('id,status')
+      .maybeSingle()
+
+    if (uErr) {
+      throw uErr
+    }
+
+    // If no row updated, it's either already paid (or not pending), or not found for this user.
+    if (!updated) {
+      const { data: existing, error: eErr } = await supabase
+        .from('orders')
+        .select('id,status')
+        .eq('id', orderId)
+        .eq('user_id', req.user.id)
+        .maybeSingle()
+
+      if (eErr) throw eErr
+      if (!existing) return res.status(404).json({ error: 'Order not found' })
+
+      noStoreJson(res)
+      return res.json({ ok: true, orderId: existing.id, status: existing.status, alreadyProcessed: true })
+    }
+
+    // Decrement stock for each item in this order
+    const { data: items, error: itemsErr } = await supabase
+      .from('order_items')
+      .select('product_id,quantity')
+      .eq('order_id', orderId)
+
+    if (itemsErr) throw itemsErr
+
+    for (const item of items || []) {
+      const qty = Number.parseInt(String(item.quantity ?? 0), 10)
+      if (!item.product_id || Number.isNaN(qty) || qty <= 0) continue
+
+      const { data: p, error: pErr } = await supabase
+        .from('products')
+        .select('id,stock')
+        .eq('id', item.product_id)
+        .single()
+
+      if (pErr) throw pErr
+
+      const current = Number.parseInt(String(p.stock ?? 0), 10)
+      const nextStock = Math.max(0, current - qty)
+
+      const { error: sErr } = await supabase
+        .from('products')
+        .update({ stock: nextStock })
+        .eq('id', item.product_id)
+
+      if (sErr) throw sErr
+    }
+
+    noStoreJson(res)
+    res.json({
+      ok: true,
+      orderId: updated.id,
+      status: updated.status,
+      paypalAlreadyCaptured: !!captureResult?.alreadyCaptured,
+    })
+  } catch (error) {
+    console.error('Error capturing PayPal order:', error)
     res.status(500).json({ error: error.message })
   }
 })

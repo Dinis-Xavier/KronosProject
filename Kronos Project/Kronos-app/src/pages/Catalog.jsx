@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { api } from '../lib/api'
 import { supabase } from '../lib/supabase'
@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase'
 const logo = '/logo.png'
 
 function Catalog() {
+  const navigate = useNavigate()
   const { user, signOut, isAdmin, loading } = useAuth()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedBrand, setSelectedBrand] = useState('Todos')
@@ -446,7 +447,10 @@ function Catalog() {
                 Painel Admin
               </h3>
               <button
-                onClick={() => {}}
+                onClick={() => {
+                  setDrawerOpen(false)
+                  navigate('/admin/dashboard')
+                }}
                 style={{
                   width: '100%',
                   padding: '14px',
@@ -863,6 +867,13 @@ function Catalog() {
               gap: '32px'
             }}>
               {filteredProducts.map((product) => (
+                (() => {
+                  const outOfStock = (product.stock ?? 0) <= 0
+                  const adminOutOfStockStyle = isAdmin && outOfStock
+                    ? { boxShadow: 'inset 0 -3px 0 #ff3b3b' }
+                    : null
+
+                  return (
                 <Link
                   key={product.id}
                   to={`/catalog/${product.id}`}
@@ -876,7 +887,8 @@ function Catalog() {
                     border: '1px solid #1a1a1a',
                     overflow: 'hidden',
                     transition: 'transform 0.2s, box-shadow 0.2s',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    ...(adminOutOfStockStyle || {})
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.transform = 'translateY(-4px)'
@@ -884,7 +896,7 @@ function Catalog() {
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.transform = 'translateY(0)'
-                    e.currentTarget.style.boxShadow = 'none'
+                    e.currentTarget.style.boxShadow = (adminOutOfStockStyle && adminOutOfStockStyle.boxShadow) ? adminOutOfStockStyle.boxShadow : 'none'
                   }}
                 >
                   {/* Product Image */}
@@ -955,6 +967,8 @@ function Catalog() {
                     </p>
                   </div>
                 </Link>
+                  )
+                })()
               ))}
             </div>
           )}

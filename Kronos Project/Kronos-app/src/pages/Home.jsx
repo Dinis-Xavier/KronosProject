@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { api } from '../lib/api'
 //import ReactIcon{} from 'react-icons/ri'
@@ -8,6 +8,7 @@ const logo = '/logo.png'
 const bannerImage = '/HomePageBanner.jpg'
 
 function Home() {
+  const navigate = useNavigate()
   const { user, isAdmin, signOut, loading } = useAuth()
   const [newsletterEmail, setNewsletterEmail] = useState('')
   const [newsletterSubmitted, setNewsletterSubmitted] = useState(false)
@@ -262,7 +263,10 @@ function Home() {
 
             <button
               type="button"
-              onClick={() => {}}
+              onClick={() => {
+                setDrawerOpen(false)
+                navigate('/admin/dashboard')
+              }}
               style={{
                 width: '100%',
                 padding: '12px 14px',

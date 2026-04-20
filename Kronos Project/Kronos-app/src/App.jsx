@@ -7,6 +7,9 @@ import Signup from './pages/Signup'
 import Catalog from './pages/Catalog'
 import Product from './pages/Product'
 import Checkout from './pages/Checkout'
+import CheckoutReturn from './pages/CheckoutReturn'
+import CheckoutCancel from './pages/CheckoutCancel'
+import AdminDashboard from './pages/AdminDashboard'
 
 function App() {
   return (
@@ -20,6 +23,9 @@ function App() {
           <Route path="/catalog" element={<Catalog />} />
           <Route path="/catalog/:id" element={<Product />} />
           <Route path="/checkout/:id" element={<Checkout />} />
+          <Route path="/checkout/return" element={<CheckoutReturn />} />
+          <Route path="/checkout/cancel" element={<CheckoutCancel />} />
+          <Route path="/admin/dashboard" element={<AdminDashboard />} />
         </Routes>
       </AuthProvider>
     </Router>

@@ -273,6 +273,7 @@ function Product() {
   }
 
   const collectionName = product.brand ? product.brand.toUpperCase() : 'KRONOS'
+  const outOfStock = (product.stock ?? 0) <= 0
   const specs = [
     ['Movimento', product.movement_type || '-'],
     ['Caixa', product.case_material || '-'],
@@ -549,20 +550,24 @@ function Product() {
             <div style={{ display: 'flex', gap: '12px', marginBottom: '28px' }}>
               <button
                 type="button"
-                onClick={() => navigate(`/checkout/${encodeURIComponent(id)}`, { state: { product } })}
+                onClick={() => {
+                  if (outOfStock) return
+                  navigate(`/checkout/${encodeURIComponent(id)}`, { state: { product } })
+                }}
+                disabled={outOfStock}
                 style={{
                   flex: 1,
                   height: '56px',
-                  backgroundColor: '#d4af37',
-                  color: '#111111',
+                  backgroundColor: outOfStock ? '#2a2a2a' : '#d4af37',
+                  color: outOfStock ? '#9a9a9a' : '#111111',
                   border: 'none',
                   borderRadius: '6px',
                   fontSize: '18px',
                   fontWeight: '700',
-                  cursor: 'pointer',
+                  cursor: outOfStock ? 'not-allowed' : 'pointer',
                 }}
               >
-                Checkout
+                {outOfStock ? 'Indisponível' : 'Checkout'}
               </button>
 
               {user && !isAdmin && favorited !== null ? (
@@ -589,6 +594,17 @@ function Product() {
                 </button>
               ) : null}
             </div>
+
+            {outOfStock && !isAdmin ? (
+              <p style={{
+                margin: '-12px 0 24px',
+                color: '#ff6b6b',
+                fontSize: '14px',
+                fontWeight: '600',
+              }}>
+                Este produto não está disponível de momento.
+              </p>
+            ) : null}
 
             <div style={{
               display: 'grid',
@@ -641,75 +657,122 @@ function Product() {
             marginTop: '48px',
             paddingTop: '32px',
             borderTop: '1px solid #1a1a1a',
-            maxWidth: '520px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '28px',
+            maxWidth: '720px',
+            display: 'grid',
+            gridTemplateColumns: '1fr',
+            gap: '16px',
           }}>
             <div>
-              <h3 style={{
-                margin: '0 0 14px',
-                fontSize: '18px',
-                fontWeight: '600',
-                color: '#d4af37',
-                fontFamily: "'Playfair Display', serif",
+              <div style={{
+                borderRadius: '14px',
+                border: '1px solid rgba(255,255,255,0.08)',
+                background: 'linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.02))',
+                boxShadow: '0 18px 42px rgba(0,0,0,0.45)',
+                padding: '18px',
               }}>
-                Stock (admin)
-              </h3>
-              <p style={{ margin: '0 0 12px', color: '#8a8a8a', fontSize: '14px' }}>
-                Stock atual na loja:{' '}
-                <strong style={{ color: '#ffffff' }}>{product.stock ?? 0}</strong> unidades
-              </p>
-              <label htmlFor="admin-stock" style={{ display: 'block', marginBottom: '8px', color: '#b0b0b0', fontSize: '14px' }}>
-                Alterar stock
-              </label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
-                <input
-                  id="admin-stock"
-                  type="number"
-                  min={0}
-                  step={1}
-                  value={stockDraft}
-                  onChange={(e) => setStockDraft(e.target.value)}
-                  disabled={stockSaving}
-                  style={{
-                    width: '120px',
-                    padding: '12px 14px',
-                    backgroundColor: '#1a1a1a',
-                    border: '1px solid #3a3a3a',
-                    borderRadius: '8px',
-                    fontSize: '16px',
-                    color: '#ffffff',
-                    boxSizing: 'border-box',
-                  }}
-                />
-                <button
-                  type="button"
-                  disabled={stockSaving}
-                  onClick={handleSaveStock}
-                  style={{
-                    padding: '12px 22px',
-                    backgroundColor: stockSaving ? '#3a3a3a' : '#d4af37',
-                    color: stockSaving ? '#888' : '#1a1a1a',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    cursor: stockSaving ? 'not-allowed' : 'pointer',
-                  }}
-                >
-                  {stockSaving ? 'A guardar…' : 'Guardar stock'}
-                </button>
-              </div>
-              {stockMessage.text ? (
-                <p style={{
-                  margin: '12px 0 0',
-                  fontSize: '14px',
-                  color: stockMessage.type === 'ok' ? '#6bff6b' : '#ff6b6b',
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div>
+                    <h3 style={{
+                      margin: 0,
+                      fontSize: '18px',
+                      fontWeight: '700',
+                      color: '#ffffff',
+                      fontFamily: "'Playfair Display', serif",
+                    }}>
+                      Inventário
+                    </h3>
+                    <p style={{ margin: '6px 0 0', color: '#a0a0a0', fontSize: '13px' }}>
+                      Stock atual: <strong style={{ color: '#ffffff' }}>{product.stock ?? 0}</strong> unidades
+                    </p>
+                  </div>
+
+                  <div style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 12px',
+                    borderRadius: '999px',
+                    border: '1px solid rgba(212,175,55,0.35)',
+                    backgroundColor: 'rgba(212,175,55,0.10)',
+                    color: '#d4af37',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    letterSpacing: '1px',
+                  }}>
+                    ADMIN
+                  </div>
+                </div>
+
+                <div style={{
+                  marginTop: '16px',
+                  display: 'grid',
+                  gridTemplateColumns: '1fr auto',
+                  gap: '12px',
+                  alignItems: 'end',
                 }}>
-                  {stockMessage.text}
-                </p>
-              ) : null}
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    <label htmlFor="admin-stock" style={{ color: '#c8c8c8', fontSize: '13px', fontWeight: '650' }}>
+                      Alterar stock
+                    </label>
+                    <input
+                      id="admin-stock"
+                      type="number"
+                      min={0}
+                      step={1}
+                      inputMode="numeric"
+                      value={stockDraft}
+                      onChange={(e) => setStockDraft(e.target.value)}
+                      disabled={stockSaving}
+                      style={{
+                        width: '100%',
+                        padding: '12px 14px',
+                        backgroundColor: '#121212',
+                        border: '1px solid #2a2a2a',
+                        borderRadius: '12px',
+                        fontSize: '16px',
+                        color: '#ffffff',
+                        boxSizing: 'border-box',
+                        outline: 'none',
+                      }}
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={stockSaving}
+                    onClick={handleSaveStock}
+                    style={{
+                      height: '46px',
+                      padding: '0 18px',
+                      backgroundColor: stockSaving ? '#2b2b2b' : '#d4af37',
+                      color: stockSaving ? '#9a9a9a' : '#1a1a1a',
+                      border: 'none',
+                      borderRadius: '12px',
+                      fontSize: '14px',
+                      fontWeight: '800',
+                      cursor: stockSaving ? 'not-allowed' : 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {stockSaving ? 'A guardar…' : 'Guardar'}
+                  </button>
+                </div>
+
+                {stockMessage.text ? (
+                  <div style={{
+                    marginTop: '12px',
+                    padding: '10px 12px',
+                    borderRadius: '12px',
+                    border: `1px solid ${stockMessage.type === 'ok' ? 'rgba(107,255,107,0.25)' : 'rgba(255,107,107,0.28)'}`,
+                    backgroundColor: stockMessage.type === 'ok' ? 'rgba(107,255,107,0.07)' : 'rgba(255,107,107,0.07)',
+                    color: stockMessage.type === 'ok' ? '#6bff6b' : '#ff6b6b',
+                    fontSize: '14px',
+                    fontWeight: '650',
+                  }}>
+                    {stockMessage.text}
+                  </div>
+                ) : null}
+              </div>
             </div>
 
             <div>
@@ -720,17 +783,23 @@ function Product() {
                   setConfirmRemoveOpen(true)
                 }}
                 style={{
-                  padding: '14px 28px',
-                  backgroundColor: 'transparent',
+                  width: '100%',
+                  padding: '14px 16px',
+                  backgroundColor: 'rgba(255, 107, 107, 0.08)',
                   color: '#ff6b6b',
-                  border: '1px solid #5a2f2f',
-                  borderRadius: '8px',
-                  fontSize: '15px',
-                  fontWeight: '600',
+                  border: '1px solid rgba(255, 107, 107, 0.35)',
+                  borderRadius: '14px',
+                  fontSize: '14px',
+                  fontWeight: '800',
                   cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '12px',
                 }}
               >
-                Remover produto
+                <span>Remover produto</span>
+                <span style={{ color: 'rgba(255, 107, 107, 0.85)', fontWeight: '900' }}>›</span>
               </button>
             </div>
           </div>
@@ -759,66 +828,94 @@ function Product() {
               top: '50%',
               transform: 'translate(-50%, -50%)',
               zIndex: 201,
-              width: 'min(420px, calc(100vw - 32px))',
-              padding: '28px',
-              backgroundColor: '#121212',
-              border: '1px solid #2a2a2a',
-              borderRadius: '12px',
-              boxShadow: '0 24px 48px rgba(0,0,0,0.5)',
+              width: 'min(520px, calc(100vw - 32px))',
+              padding: '22px',
+              background: 'linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))',
+              border: '1px solid rgba(255,255,255,0.10)',
+              borderRadius: '16px',
+              boxShadow: '0 30px 70px rgba(0,0,0,0.6)',
             }}
           >
-            <h2
-              id="confirm-remove-title"
-              style={{
-                margin: '0 0 12px',
-                fontSize: '20px',
-                fontWeight: '600',
-                color: '#ffffff',
-                fontFamily: "'Playfair Display', serif",
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+              <div style={{ minWidth: 0 }}>
+                <h2
+                  id="confirm-remove-title"
+                  style={{
+                    margin: 0,
+                    fontSize: '20px',
+                    fontWeight: '700',
+                    color: '#ffffff',
+                    fontFamily: "'Playfair Display', serif",
+                  }}
+                >
+                  Remover produto
+                </h2>
+                <p style={{ margin: '10px 0 0', color: 'rgba(255,255,255,0.70)', fontSize: '14px', lineHeight: 1.6 }}>
+                  Esta ação é permanente e remove o produto do catálogo.
+                </p>
+              </div>
+
+              <div style={{
+                width: '44px',
+                height: '44px',
+                borderRadius: '14px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: 'rgba(255, 107, 107, 0.10)',
+                border: '1px solid rgba(255, 107, 107, 0.28)',
+                color: '#ff6b6b',
+                flexShrink: 0,
               }}
-            >
-              Confirmar remoção
-            </h2>
-            <p style={{ margin: '0 0 20px', color: '#b0b0b0', fontSize: '15px', lineHeight: 1.5 }}>
-              Tem a certeza que deseja remover este produto? Esta ação não pode ser desfeita.
-            </p>
+              aria-hidden="true"
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                  <path d="M3 6h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  <path d="M6 6l1 16a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-16" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+                  <path d="M10 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  <path d="M14 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+              </div>
+            </div>
+
             {removeError ? (
               <p style={{ margin: '0 0 16px', color: '#ff6b6b', fontSize: '14px' }}>{removeError}</p>
             ) : null}
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '18px' }}>
               <button
                 type="button"
                 disabled={removeLoading}
                 onClick={() => setConfirmRemoveOpen(false)}
                 style={{
-                  padding: '12px 20px',
-                  backgroundColor: 'transparent',
-                  color: '#cccccc',
-                  border: '1px solid #3a3a3a',
-                  borderRadius: '8px',
+                  padding: '12px 18px',
+                  backgroundColor: 'rgba(255,255,255,0.03)',
+                  color: '#e0e0e0',
+                  border: '1px solid rgba(255,255,255,0.10)',
+                  borderRadius: '12px',
                   fontSize: '14px',
-                  fontWeight: '600',
+                  fontWeight: '800',
                   cursor: removeLoading ? 'not-allowed' : 'pointer',
                 }}
               >
-                Não
+                Cancelar
               </button>
               <button
                 type="button"
                 disabled={removeLoading}
                 onClick={handleConfirmRemove}
                 style={{
-                  padding: '12px 20px',
-                  backgroundColor: '#5a2020',
+                  padding: '12px 18px',
+                  backgroundColor: removeLoading ? '#3a1c1c' : '#ff6b6b',
                   color: '#ffffff',
-                  border: '1px solid #7a3030',
-                  borderRadius: '8px',
+                  border: '1px solid rgba(255, 107, 107, 0.45)',
+                  borderRadius: '12px',
                   fontSize: '14px',
-                  fontWeight: '600',
+                  fontWeight: '900',
                   cursor: removeLoading ? 'not-allowed' : 'pointer',
                 }}
               >
-                {removeLoading ? 'A remover…' : 'Sim, remover'}
+                {removeLoading ? 'A remover…' : 'Remover'}
               </button>
             </div>
           </div>

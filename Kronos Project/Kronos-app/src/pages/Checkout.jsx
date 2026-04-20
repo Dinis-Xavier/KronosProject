@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../lib/api'
+import { supabase } from '../lib/supabase'
 
 const logo = '/logo.png'
 
@@ -21,6 +22,9 @@ function Checkout() {
     postalCode: '',
     country: 'PT',
   })
+
+  const [payLoading, setPayLoading] = useState(false)
+  const [payError, setPayError] = useState('')
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'auto' })
@@ -70,7 +74,52 @@ function Checkout() {
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    // Por agora não faz nada (integração pagamento vem depois).
+  }
+
+  const toAddressString = () => {
+    const parts = [
+      form.fullName && `Nome: ${form.fullName}`,
+      form.addressLine1 && `Morada: ${form.addressLine1}`,
+      form.addressLine2 && `Complemento: ${form.addressLine2}`,
+      form.postalCode && `CP: ${form.postalCode}`,
+      form.city && `Cidade: ${form.city}`,
+      form.country && `País: ${form.country}`,
+    ].filter(Boolean)
+    return parts.join(' | ')
+  }
+
+  const handlePay = async () => {
+    setPayError('')
+    const address = toAddressString()
+    if (!address.trim()) {
+      setPayError('Preencha a morada antes de pagar.')
+      return
+    }
+
+    setPayLoading(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        navigate('/login', { state: { from: `/checkout/${encodeURIComponent(id)}` }, replace: false })
+        return
+      }
+
+      const result = await api.post(
+        '/paypal/create-order',
+        { productId: id, address },
+        session.access_token,
+      )
+
+      if (!result?.approveUrl) {
+        throw new Error('O PayPal não devolveu um link de checkout.')
+      }
+
+      window.location.href = result.approveUrl
+    } catch (err) {
+      setPayError(err.message || 'Não foi possível iniciar o pagamento.')
+    } finally {
+      setPayLoading(false)
+    }
   }
 
   if (loading) {
@@ -338,21 +387,27 @@ function Checkout() {
                 </select>
               </div>
 
+              {payError ? (
+                <p style={{ margin: '4px 0 0', color: '#ff6b6b', fontSize: '14px' }}>{payError}</p>
+              ) : null}
+
               <button
-                type="submit"
+                type="button"
+                onClick={handlePay}
+                disabled={payLoading}
                 style={{
                   marginTop: '6px',
                   height: '54px',
-                  backgroundColor: '#d4af37',
-                  color: '#111111',
+                  backgroundColor: payLoading ? '#3a3a3a' : '#d4af37',
+                  color: payLoading ? '#999999' : '#111111',
                   border: 'none',
                   borderRadius: '10px',
                   fontSize: '16px',
                   fontWeight: '800',
-                  cursor: 'pointer',
+                  cursor: payLoading ? 'wait' : 'pointer',
                 }}
               >
-                Pagar
+                {payLoading ? 'A redirecionar…' : 'Pagar com PayPal'}
               </button>
             </form>
           </div>

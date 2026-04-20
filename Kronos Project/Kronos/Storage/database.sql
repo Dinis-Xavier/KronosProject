@@ -41,6 +41,7 @@ create table orders (
   total numeric(10,2) not null,
   status text default 'pending',
   created_at timestamp with time zone default now()
+  address TEXT,
 );
 
 create table order_items (

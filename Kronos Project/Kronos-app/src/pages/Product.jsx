@@ -549,6 +549,7 @@ function Product() {
             <div style={{ display: 'flex', gap: '12px', marginBottom: '28px' }}>
               <button
                 type="button"
+                onClick={() => navigate(`/checkout/${encodeURIComponent(id)}`, { state: { product } })}
                 style={{
                   flex: 1,
                   height: '56px',

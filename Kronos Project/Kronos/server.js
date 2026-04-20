@@ -5,6 +5,8 @@ import { createClient } from '@supabase/supabase-js'
 import multer from 'multer'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
+import { extractCustomIdFromPayPalOrder, isOrderAlreadyCapturedResponse } from './lib/paypal-utils.js'
+import { pickTopCountry } from './lib/dashboard-utils.js'
 //ddd
 
 const __filename = fileURLToPath(import.meta.url)
@@ -125,11 +127,7 @@ const capturePayPalOrder = async (paypalOrderId) => {
       bodyJson = null
     }
 
-    const alreadyCaptured =
-      res.status === 422 &&
-      bodyJson?.name === 'UNPROCESSABLE_ENTITY' &&
-      Array.isArray(bodyJson?.details) &&
-      bodyJson.details.some((d) => d?.issue === 'ORDER_ALREADY_CAPTURED')
+    const alreadyCaptured = isOrderAlreadyCapturedResponse(res.status, bodyJson)
 
     if (alreadyCaptured) {
       return { alreadyCaptured: true, body: bodyJson }
@@ -536,27 +534,7 @@ app.get('/api/admin/dashboard', authenticateUser, requireAdmin, async (req, res)
     const totalMoney = (paidOrders || []).reduce((sum, o) => sum + Number.parseFloat(String(o.total ?? 0) || '0'), 0)
 
     // Country with most purchases (parse from concatenated address)
-    const countryCounts = new Map()
-    const countryFromAddress = (address) => {
-      if (!address) return null
-      const m = String(address).match(/Pa[ií]s:\s*([A-Za-z]{2})/i)
-      return m ? m[1].toUpperCase() : null
-    }
-
-    for (const o of paidOrders || []) {
-      const c = countryFromAddress(o.address)
-      if (!c) continue
-      countryCounts.set(c, (countryCounts.get(c) || 0) + 1)
-    }
-
-    let topCountry = null
-    let topCountryPurchases = 0
-    for (const [c, count] of countryCounts.entries()) {
-      if (count > topCountryPurchases) {
-        topCountry = c
-        topCountryPurchases = count
-      }
-    }
+    const { topCountry, topCountryPurchases } = pickTopCountry((paidOrders || []).map((o) => o.address))
 
     // Best seller (by quantity) among paid orders
     const paidOrderIds = (paidOrders || []).map((o) => o.id)
@@ -695,14 +673,12 @@ app.post('/api/paypal/capture-order', authenticateUser, async (req, res) => {
     const captureResult = await capturePayPalOrder(paypalOrderId)
     const capture = captureResult?.body
 
-    let purchaseUnit = Array.isArray(capture?.purchase_units) ? capture.purchase_units[0] : null
-    let orderId = purchaseUnit?.custom_id
+    let orderId = extractCustomIdFromPayPalOrder(capture)
 
     // Some PayPal capture responses omit custom_id; fetch order details as fallback.
     if (!orderId) {
       const details = await getPayPalOrderDetails(paypalOrderId)
-      purchaseUnit = Array.isArray(details?.purchase_units) ? details.purchase_units[0] : null
-      orderId = purchaseUnit?.custom_id
+      orderId = extractCustomIdFromPayPalOrder(details)
     }
 
     if (!orderId) return res.status(500).json({ error: 'Missing custom_id (orderId) in PayPal response' })

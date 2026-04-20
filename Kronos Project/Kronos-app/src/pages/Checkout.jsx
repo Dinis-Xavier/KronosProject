@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import { supabase } from '../lib/supabase'
+import { toAddressString } from '../lib/address'
 
 const logo = '/logo.png'
 
@@ -76,21 +77,9 @@ function Checkout() {
     e.preventDefault()
   }
 
-  const toAddressString = () => {
-    const parts = [
-      form.fullName && `Nome: ${form.fullName}`,
-      form.addressLine1 && `Morada: ${form.addressLine1}`,
-      form.addressLine2 && `Complemento: ${form.addressLine2}`,
-      form.postalCode && `CP: ${form.postalCode}`,
-      form.city && `Cidade: ${form.city}`,
-      form.country && `País: ${form.country}`,
-    ].filter(Boolean)
-    return parts.join(' | ')
-  }
-
   const handlePay = async () => {
     setPayError('')
-    const address = toAddressString()
+    const address = toAddressString(form)
     if (!address.trim()) {
       setPayError('Preencha a morada antes de pagar.')
       return
@@ -189,9 +178,6 @@ function Checkout() {
 
         <nav style={{ display: 'flex', gap: '40px' }}>
           <Link to="/catalog" style={{ color: '#ffffff', textDecoration: 'none', fontSize: '14px', fontWeight: '500' }}>COLEÇÕES</Link>
-          <a href="#" style={{ color: '#ffffff', textDecoration: 'none', fontSize: '14px', fontWeight: '500' }}>NOVIDADES</a>
-          <a href="#" style={{ color: '#ffffff', textDecoration: 'none', fontSize: '14px', fontWeight: '500' }}>SOBRE</a>
-          <a href="#" style={{ color: '#ffffff', textDecoration: 'none', fontSize: '14px', fontWeight: '500' }}>CONTACTO</a>
         </nav>
 
         <button

@@ -6,6 +6,9 @@ import { useAuth } from '../contexts/AuthContext'
 
 const logo = '/logo.png'
 
+const uiFontFamily =
+  "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif"
+
 function HeartWithSlashIcon() {
   return (
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -274,6 +277,7 @@ function Product() {
 
   const collectionName = product.brand ? product.brand.toUpperCase() : 'KRONOS'
   const outOfStock = (product.stock ?? 0) <= 0
+  const checkoutDisabled = outOfStock || isAdmin
   const specs = [
     ['Movimento', product.movement_type || '-'],
     ['Caixa', product.case_material || '-'],
@@ -548,23 +552,23 @@ function Product() {
               <button
                 type="button"
                 onClick={() => {
-                  if (outOfStock) return
+                  if (checkoutDisabled) return
                   navigate(`/checkout/${encodeURIComponent(id)}`, { state: { product } })
                 }}
-                disabled={outOfStock}
+                disabled={checkoutDisabled}
                 style={{
                   flex: 1,
                   height: '56px',
-                  backgroundColor: outOfStock ? '#2a2a2a' : '#d4af37',
-                  color: outOfStock ? '#9a9a9a' : '#111111',
+                  backgroundColor: checkoutDisabled ? '#2a2a2a' : '#d4af37',
+                  color: checkoutDisabled ? '#9a9a9a' : '#111111',
                   border: 'none',
                   borderRadius: '6px',
                   fontSize: '18px',
                   fontWeight: '700',
-                  cursor: outOfStock ? 'not-allowed' : 'pointer',
+                  cursor: checkoutDisabled ? 'not-allowed' : 'pointer',
                 }}
               >
-                {outOfStock ? 'Indisponível' : 'Checkout'}
+                {checkoutDisabled ? 'Indisponível' : 'Checkout'}
               </button>
 
               {user && !isAdmin && favorited !== null ? (
@@ -658,6 +662,7 @@ function Product() {
             display: 'grid',
             gridTemplateColumns: '1fr',
             gap: '16px',
+            fontFamily: uiFontFamily,
           }}>
             <div>
               <div style={{
@@ -674,7 +679,6 @@ function Product() {
                       fontSize: '18px',
                       fontWeight: '700',
                       color: '#ffffff',
-                      fontFamily: "'Playfair Display', serif",
                     }}>
                       Inventário
                     </h3>
@@ -730,6 +734,7 @@ function Product() {
                         color: '#ffffff',
                         boxSizing: 'border-box',
                         outline: 'none',
+                        fontFamily: uiFontFamily,
                       }}
                     />
                   </div>
@@ -749,6 +754,7 @@ function Product() {
                       fontWeight: '800',
                       cursor: stockSaving ? 'not-allowed' : 'pointer',
                       whiteSpace: 'nowrap',
+                      fontFamily: uiFontFamily,
                     }}
                   >
                     {stockSaving ? 'A guardar…' : 'Guardar'}
@@ -793,6 +799,7 @@ function Product() {
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   gap: '12px',
+                  fontFamily: uiFontFamily,
                 }}
               >
                 <span>Remover produto</span>
@@ -811,7 +818,7 @@ function Product() {
             style={{
               position: 'fixed',
               inset: 0,
-              backgroundColor: 'rgba(0,0,0,0.65)',
+              backgroundColor: 'rgba(0,0,0,0.88)',
               zIndex: 200,
             }}
           />
@@ -827,10 +834,11 @@ function Product() {
               zIndex: 201,
               width: 'min(520px, calc(100vw - 32px))',
               padding: '22px',
-              background: 'linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))',
-              border: '1px solid rgba(255,255,255,0.10)',
+              backgroundColor: '#161616',
+              border: '1px solid rgba(255,255,255,0.12)',
               borderRadius: '16px',
               boxShadow: '0 30px 70px rgba(0,0,0,0.6)',
+              fontFamily: uiFontFamily,
             }}
           >
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
@@ -842,7 +850,6 @@ function Product() {
                     fontSize: '20px',
                     fontWeight: '700',
                     color: '#ffffff',
-                    fontFamily: "'Playfair Display', serif",
                   }}
                 >
                   Remover produto
@@ -893,6 +900,7 @@ function Product() {
                   fontSize: '14px',
                   fontWeight: '800',
                   cursor: removeLoading ? 'not-allowed' : 'pointer',
+                  fontFamily: uiFontFamily,
                 }}
               >
                 Cancelar
@@ -910,6 +918,7 @@ function Product() {
                   fontSize: '14px',
                   fontWeight: '900',
                   cursor: removeLoading ? 'not-allowed' : 'pointer',
+                  fontFamily: uiFontFamily,
                 }}
               >
                 {removeLoading ? 'A remover…' : 'Remover'}

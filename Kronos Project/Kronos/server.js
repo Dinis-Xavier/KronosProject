@@ -576,6 +576,61 @@ app.get('/api/admin/dashboard', authenticateUser, requireAdmin, async (req, res)
       }
     }
 
+    // Recent sales (paid orders) for dashboard table
+    const { data: recentPaidOrders, error: recentErr } = await supabase
+      .from('orders')
+      .select('id,total,address,created_at,user_id,order_items(quantity,price,products(name))')
+      .eq('status', 'paid')
+      .order('created_at', { ascending: false })
+      .limit(25)
+
+    if (recentErr) throw recentErr
+
+    const uniqueUserIds = Array.from(new Set((recentPaidOrders || []).map((o) => o.user_id).filter(Boolean)))
+    const emailByUserId = new Map()
+    await Promise.all(uniqueUserIds.map(async (uid) => {
+      try {
+        const { data, error } = await supabase.auth.admin.getUserById(uid)
+        if (error) return
+        const email = data?.user?.email || null
+        if (email) emailByUserId.set(uid, email)
+      } catch {
+        // ignore per-user failures; dashboard should still load
+      }
+    }))
+
+    const recentSales = []
+    for (const o of recentPaidOrders || []) {
+      const buyer = emailByUserId.get(o.user_id) || o.user_id || '—'
+      const orderItems = Array.isArray(o.order_items) ? o.order_items : []
+      if (orderItems.length === 0) {
+        recentSales.push({
+          buyer,
+          product: '—',
+          price: Number.parseFloat(String(o.total ?? 0) || '0'),
+          quantity: 1,
+          address: o.address || '',
+          date: o.created_at || null,
+          orderId: o.id,
+        })
+        continue
+      }
+
+      for (const it of orderItems) {
+        const qty = Number.parseInt(String(it?.quantity ?? 1), 10)
+        const unit = Number.parseFloat(String(it?.price ?? 0) || '0')
+        recentSales.push({
+          buyer,
+          product: it?.products?.name || '—',
+          price: Number.isNaN(unit) ? 0 : unit,
+          quantity: Number.isNaN(qty) ? 1 : qty,
+          address: o.address || '',
+          date: o.created_at || null,
+          orderId: o.id,
+        })
+      }
+    }
+
     res.json({
       usersCount,
       totalMoney,
@@ -585,6 +640,7 @@ app.get('/api/admin/dashboard', authenticateUser, requireAdmin, async (req, res)
       topCountry,
       topCountryPurchases,
       bestSeller,
+      recentSales,
       currency: PAYPAL_CURRENCY,
     })
   } catch (error) {

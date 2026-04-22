@@ -20,6 +20,20 @@ function AdminDashboard() {
     return `${n.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`
   }, [data])
 
+  const formatMoney = (value) => {
+    const currency = data?.currency || 'EUR'
+    const n = Number.parseFloat(String(value ?? 0))
+    if (Number.isNaN(n)) return `0.00 ${currency}`
+    return `${n.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`
+  }
+
+  const formatDate = (value) => {
+    if (!value) return '—'
+    const d = new Date(value)
+    if (Number.isNaN(d.getTime())) return '—'
+    return d.toLocaleString('pt-PT')
+  }
+
   useEffect(() => {
     let mounted = true
     if (!user || !isAdmin) return
@@ -208,6 +222,86 @@ function AdminDashboard() {
               loading={fetching}
             />
           ))}
+        </section>
+
+        <section style={{
+          marginTop: '16px',
+          padding: '18px',
+          borderRadius: '16px',
+          border: '1px solid rgba(255,255,255,0.08)',
+          background: 'linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02))',
+          boxShadow: '0 16px 40px rgba(0,0,0,0.45)',
+          overflow: 'hidden',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <h2 style={{ margin: 0, fontSize: '16px', fontWeight: '800' }}>Vendas recentes</h2>
+            <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: '12px', fontWeight: '700', letterSpacing: '0.6px' }}>
+              {fetching ? 'A carregar…' : `${(data?.recentSales || []).length} registos`}
+            </div>
+          </div>
+
+          <div style={{ marginTop: '12px', width: '100%', overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, minWidth: '820px' }}>
+              <thead>
+                <tr>
+                  {['Comprador', 'Produto', 'Preço', 'Morada', 'Data'].map((h) => (
+                    <th
+                      key={h}
+                      style={{
+                        textAlign: 'left',
+                        padding: '10px 12px',
+                        fontSize: '12px',
+                        color: 'rgba(255,255,255,0.7)',
+                        borderBottom: '1px solid rgba(255,255,255,0.10)',
+                        letterSpacing: '0.8px',
+                        textTransform: 'uppercase',
+                        fontWeight: '800',
+                      }}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {fetching ? (
+                  <tr>
+                    <td colSpan={5} style={{ padding: '14px 12px', color: 'rgba(255,255,255,0.62)' }}>
+                      A carregar vendas…
+                    </td>
+                  </tr>
+                ) : (data?.recentSales?.length ? (
+                  data.recentSales.map((row, idx) => (
+                    <tr key={`${row.orderId || 'order'}-${idx}`}>
+                      <td style={{ padding: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', color: '#ffffff', fontWeight: '650' }}>
+                        {row.buyer || '—'}
+                      </td>
+                      <td style={{ padding: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.86)' }}>
+                        {row.product || '—'}
+                      </td>
+                      <td style={{ padding: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', color: '#d4af37', fontWeight: '800' }}>
+                        {formatMoney((Number(row.price || 0)) * (Number(row.quantity || 1)))}
+                      </td>
+                      <td style={{ padding: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.72)', maxWidth: '420px' }}>
+                        <span style={{ display: 'inline-block', maxWidth: '420px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {row.address || '—'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.72)' }}>
+                        {formatDate(row.date)}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} style={{ padding: '14px 12px', color: 'rgba(255,255,255,0.62)' }}>
+                      Sem vendas ainda.
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <section style={{
